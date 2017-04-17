@@ -2,8 +2,8 @@
 
 Links to each project:
 
-Bowling - ericburdett.github.io/computer-graphics-projects/bowling/bowling.html
+Bowling - https://ericburdett.github.io/computer-graphics-projects/bowling/bowling.html
 
-Asteroids - ericburdett.github.io/computer-graphics-projects/asteroids/index.html
+Asteroids - https://ericburdett.github.io/computer-graphics-projects/asteroids/index.html
 
-Blocks_Lights - ericburdett.github.io/computer-graphics-projects/block_lights/index.html
+Blocks_Lights - https://ericburdett.github.io/computer-graphics-projects/block_lights/index.html
