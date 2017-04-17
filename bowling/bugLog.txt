@@ -1,0 +1,51 @@
+Bugs:
+- Not all pins are removed on reset environment.
+
+
+
+
+      function onMouseMove(event) {
+  			if (!clicked) {
+  				console.log("Mouse Moving");
+  				var sceneLength = 90;
+  				var laneLength = 40;
+  				var ratio = window.innerWidth / sceneLength; //40 is the length of the lane..
+  				var value = event.clientX / ratio;
+
+  				var position = -(sceneLength/2) + value;
+
+  				//Update position only if it within the lane length
+  				if (position >= -laneLength/2 && position <= laneLength/2) {
+  					ballNewXPosition = position; //assuming that our lane is positioned at (0,0)
+  				}
+  			}
+  		}
+
+
+      function onMouseDown(event) {
+        console.log("Mouse Down!");
+        console.log("X:" + event.clientX);
+        console.log("Y:" + event.clientY);
+        clicked = true;
+        window.removeEventListener("mouseover",onMouseMove,false);
+      }
+
+      function onMouseUp(event) {
+        if (!ballMove) {
+          console.log("Mouse Up!");
+          console.log("X:" + event.clientX);
+          console.log("Y:" + event.clientY);
+          ballMove = true;
+
+          var laneLength = 40;
+          //Front - 300
+          //Back - 80
+          var perspectiveRatio = 300/80;
+          //We need to account for PerspectiveCamera
+
+          var ratio = window.innerWidth / laneLength;
+          var value = event.clientX / ratio;
+
+          ballXAngle = (-(laneLength/2) + value) - ball.position.x;
+        }
+      }

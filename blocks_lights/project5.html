@@ -1,0 +1,190 @@
+<html>
+	<head>
+		<title>My first Three.js app</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+</head>
+<body>
+
+	<div id="ThreeJS" style="position: absolute; left:0px; top:0px"></div>
+	<script src="../js/three.min.js"></script>
+	<script src='../js/dat.gui.min.js'></script>
+
+	<script>
+		"use strict"
+
+		var scene, camera, renderer, light;
+		var geometry, material, mesh;
+		var cameraRotate = 0;
+		var redRotate = 0;
+		var blueRotate = 0;
+		var greenRotate = 0;
+		var spotRotate = 0;
+
+		var rates = {
+			camRate: .005,
+			redRate: .01,
+			greenRate: .02,
+			blueRate: .03,
+			spotRate: .05
+		}
+
+		var redSphere, blueSphere, greenSphere, spotSphere;
+		var redPoint, bluePoint, greenPoint, spot;
+
+		var cubeArray = [];
+
+		init();
+		animate();
+
+		function init() {
+
+			var gui = new dat.GUI({height: 5 * 32 - 1});
+			gui.add(rates, 'camRate').name('Camera').min(.001).max(.1).step(.005);
+			gui.add(rates, 'redRate').name('Red Light').min(.001).max(.5).step(.005);
+			gui.add(rates, 'greenRate').name('Green Light').min(.001).max(.5).step(.005);
+			gui.add(rates, 'blueRate').name('Blue Light').min(.001).max(.5).step(.005);
+			gui.add(rates, 'spotRate').name('Spot (White) Light').min(.001).max(.5).step(.005);
+
+			// Create the main scene for the 3D drawing
+			scene = new THREE.Scene();
+
+			// Every scene needs a camera
+			camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
+			camera.position.z = 400;
+			camera.position.y = 200;
+			camera.position.x = 0;
+
+			camera.lookAt(scene.position);
+
+			var positionX = -200;
+			var positionY = -200;
+			var positionZ = -50;;
+
+			for (var i = 0; i < 27; i++) {
+				positionY += 100;
+
+				if (i % 3 == 0) {
+					positionZ += 100;
+					positionY = -100;
+				}
+
+				if (i % 9 == 0) {
+					positionX += 100;
+					positionZ = -100;
+				}
+
+				var cube = createCube();
+				cube.position.x = positionX;
+				cube.position.y = positionY;
+				cube.position.z = positionZ;
+				cubeArray.push(cube);
+				scene.add(cube);
+			}
+
+			var axisHelper = new THREE.AxisHelper( 500 );
+			//scene.add( axisHelper );
+
+			//Red PointLight
+			redPoint = new THREE.PointLight(0xd80404, 1, 700);
+			scene.add(redPoint);
+			redSphere = createSphere(0xd80404);
+			scene.add(redSphere);
+
+			//Blue PointLight
+			bluePoint = new THREE.PointLight(0x0704d8, 1, 700);
+			scene.add(bluePoint);
+			blueSphere = createSphere(0x0704d8);
+			scene.add(blueSphere);
+
+			//Green PointLight
+			greenPoint = new THREE.PointLight(0x039605, 1, 700);
+			scene.add(greenPoint);
+			greenSphere = createSphere(0x039605);
+			scene.add(greenSphere);
+
+			spot = new THREE.SpotLight(0xffffff, 2.0, 500);
+			spot.target = scene;
+			scene.add(spot);
+			spotSphere = createSphere(0xffffff);
+			scene.add(spotSphere);
+
+
+
+			// the renderer renders the scene using the objects, lights and camera
+			renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+
+			// Attach the threeJS renderer to the HTML page
+			document.body.appendChild( renderer.domElement );
+
+		}
+
+		function animate() {
+
+			requestAnimationFrame( animate );
+
+			cameraRotate -= rates.camRate;
+			redRotate += rates.redRate;
+			greenRotate += rates.greenRate;
+			blueRotate += rates.blueRate;
+			spotRotate += rates.spotRate;
+
+			redPoint.position.x = Math.sin(redRotate) * 300;
+			redPoint.position.z = Math.cos(redRotate) * 300;
+			redSphere.position.x = Math.sin(redRotate) * 300;
+			redSphere.position.z = Math.cos(redRotate) * 300;
+
+			greenPoint.position.y = Math.sin(greenRotate) * 300;
+			greenPoint.position.z = Math.cos(greenRotate) * 300;
+			greenSphere.position.y = Math.sin(greenRotate) * 300;
+			greenSphere.position.z = Math.cos(greenRotate) * 300;
+
+			bluePoint.position.x = Math.sin(blueRotate) * 300;
+			bluePoint.position.y = Math.cos(blueRotate) * 300;
+			blueSphere.position.x = Math.sin(blueRotate) * 300;
+			blueSphere.position.y = Math.cos(blueRotate) * 300;
+
+			spot.position.x = Math.sin(spotRotate) * 300
+			spot.position.y = Math.sin(spotRotate) * 300;
+			spot.position.z = Math.cos(spotRotate) * 300;
+			spotSphere.position.x = Math.sin(spotRotate) * 300;
+			spotSphere.position.y = Math.sin(spotRotate) * 300;
+			spotSphere.position.z = Math.cos(spotRotate) * 300;
+
+			camera.position.x = Math.sin(cameraRotate) * 500;
+			camera.position.z = Math.cos(cameraRotate) * 500;
+
+			for (var i = 0; i < cubeArray.length; i++) {
+				cubeArray[i].rotation.x = Math.sin(cameraRotate * 4);
+				if (i % 2 == 0)
+					cubeArray[i].rotation.y = Math.cos(cameraRotate * 4);
+				else
+					cubeArray[i].rotation.z = Math.cos(cameraRotate * 4);
+			}
+
+			camera.lookAt(scene.position);
+
+			renderer.render( scene, camera );
+		}
+
+		function createCube() {
+			var geo = new THREE.BoxGeometry(50,50,50);
+			var mat = new THREE.MeshLambertMaterial({color:0xFFFFFF});
+			var cube = new THREE.Mesh(geo, mat);
+			return cube;
+		}
+
+		function createSphere(theColor) {
+			var geo = new THREE.SphereGeometry(5, 32, 32);
+			var mat = new THREE.MeshBasicMaterial({color: theColor});
+			var sphere = new THREE.Mesh(geo, mat);
+			return sphere;
+		}
+
+</script>
+
+</body>
+</html>

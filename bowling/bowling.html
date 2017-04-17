@@ -1,0 +1,638 @@
+<html>
+	<head>
+		<title>Bowling!</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+
+			/* Variation of the modal taken from https://www.w3schools.com/howto/howto_css_modals.asp */
+			.modal {
+    	display: none; /* Hidden by default */
+    	position: fixed; /* Stay in place */
+    	z-index: 1; /* Sit on top */
+    	padding-top: 100px; /* Location of the box */
+    	left: 0;
+    	top: 0;
+    	width: 100%; /* Full width */
+    	height: 100%; /* Full height */
+    	overflow: auto; /* Enable scroll if needed */
+    	background-color: rgb(0,0,0); /* Fallback color */
+    	background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+		}
+
+		/* Modal Content */
+		.modal-content {
+    	background-color: ffffff;
+			font-family:sans-serif;
+    	margin: auto;
+    	padding: 20px;
+    	border: 1px solid #888;
+    	width: 80%;
+		}
+
+		/* The Close Button */
+		.close {
+    	color: #aaaaaa;
+    	float: right;
+    	font-size: 28px;
+    	font-weight: bold;
+		}
+
+		.close:hover,
+		.close:focus {
+    	color: #000;
+    	text-decoration: none;
+    	cursor: pointer;
+		}
+		</style>
+</head>
+<body>
+
+	<div id="ThreeJS" style="position: absolute; left:0px; top:0px"></div>
+	<script src="../js/three.min.js"></script>
+	<script src="../js/physi.js"></script>
+	<script src="objectFactory.js"></script>
+
+	<div id="myModal" class="modal">
+  	<!-- User Controls Text -->
+  	<div class="modal-content">
+    	<span class="close">&times;</span>
+			<h2>User Controls:</h2>
+    	<p>Enter: Roll the Ball</p>
+			<p>Left/Right Arrows: Move the Ball, Change Angle the ball is rolled</p>
+			<p>Up/Down Arrows: Adjust Ball Speed</p>
+			<p>Spacebar: Toggle between moving the ball, changing the angle</p>
+			<p>A Key: Toggle Help Line</p>
+  	</div>
+	</div>
+
+	<script>
+		"use strict"
+		Physijs.scripts.worker = '../js/physijs_worker.js';
+		Physijs.scripts.ammo = '../js/ammo.js';
+
+		var modal = document.getElementById('myModal');
+		var span = document.getElementsByClassName("close")[0];
+
+		// When the user exits out of the modal
+		span.onclick = function() {
+    	modal.style.display = "none";
+		}
+		// When the user clicks outside of modal
+		window.onclick = function(event) {
+    	if (event.target == modal) {
+        	modal.style.display = "none";
+    	}
+		}
+
+		/*************************************
+		* Global Variables needed in the Animate Method
+		**************************************/
+		//Scene
+		var scene, camera, renderer;
+
+		//Objects
+		var ball;
+		var pinsArray = [];
+		var pinsStartLocation = [];
+		var standingPins = [];
+		var spotLight3;
+		var helpLine;
+		var scoreText;
+		var speedText;
+		var scoreGroup = new THREE.Object3D();
+		var messageText;
+		var textTotalScores = [];
+
+		//Boolean Variables needed for Game
+		var ballMove = false;
+		var spacebar = false;
+		var linesOn = false;
+		var sceneSetUp = true;
+		var currentTime = 0;
+		var controlsUp = false;
+
+		//For moving the Ball
+		var ballNewXPosition = 0;
+		var ballXAngle = 0;
+		var ballSpeed = 1.5;
+
+		//For keeping score
+		var frame = 1;
+		var numRolls = 0;
+		var numTotalScores = 0;
+		var score = 0;
+		var currentScore;
+		var strikeNum = 0;
+		var rollScores = [];
+		var totalScores = [];
+
+		init();
+		animate();
+
+		function init() {
+				/*****************************
+				* Create the Renderer and Scene Objects
+				******************************/
+				renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+        scene = new Physijs.Scene;
+				scene.setGravity(new THREE.Vector3(0,-70,0));
+
+				/****************************
+				* Add the Event Listener for keystrokes
+				*****************************/
+				window.addEventListener("keydown",onKeyDown,false);
+
+				/**************************
+				* Set the Camera
+				***************************/
+				camera = new THREE.PerspectiveCamera(
+										35,window.innerWidth / window.innerHeight,1,1000);
+										//0,50,350
+										//480, 0, -200
+        camera.position.set(0,50,350);
+				// scene.position.z = -175;
+				scene.position.z = -190;
+        camera.lookAt( scene.position );
+        scene.add( camera );
+
+				/**************************
+				* Create the surrounding scene
+				***************************/
+				//Add the 5 Lanes with floor in front
+				scene.add(createLane(400,1,40,0,0,0));
+				scene.add(createLane(400,1,40,60,0,0));
+				scene.add(createLane(400,1,40,-60,0,0));
+				scene.add(createLane(400,1,40,120,0,0));
+				scene.add(createLane(400,1,40,-120,0,0));
+				scene.add(createLane(400,1,40,180,0,0));
+				scene.add(createLane(400,1,40,-180,0,0));
+				scene.add(createLane(400,1,40,240,0,0));
+				scene.add(createLane(400,1,40,-240,0,0));
+				//Connect lanes with floor in front
+				scene.add(createLane(50,1,560,0,0,225))
+
+				// Create the Gutters
+				createGutter(-30,-2,0,0,scene);
+				createGutter(30,-2,0,0,scene);
+				createGutter(-90,-2,0,0,scene);
+				createGutter(90,-2,0,0,scene);
+				createGutter(-150,-2,0,0,scene);
+				createGutter(150,-2,0,0,scene);
+				createGutter(-210,-2,0,0,scene);
+				createGutter(210,-2,0,0,scene);
+				createGutter(-270,-2,0,0,scene);
+				createGutter(270,-2,0,0,scene);
+
+				//Create the backdrop
+				createBackdrop(0,65,-179,scene);
+				//The Bowling Text - Set to scoreText
+				createText("Welcome to Bowling!",-95,50,100,scene,17,5,true,true,false);
+				createText("Ball Speed:",100,30,-160,scene,7,3,true,false,false);
+				createText(Math.round((ballSpeed - 1) * 10),145,30,-160,scene,7,3,false,false,true);
+				createScorecard(0,90,100,scene);
+				createText("Press H for Help",-140,30,100,scene,7,3,false,false,false);
+				//Create the Ball
+				ball = createBall(3);
+				ball.position.set(0,5,200);
+				scene.add(ball);
+
+				//Initialize all pins to be standing
+				for (var i = 0; i < 10; i++) {
+					standingPins[i] = true;
+				}
+
+				//Add the Pins to the Scene
+				setUpPins(60,6,-150,2.5,3,false,standingPins);
+				setUpPins(-60,6,-150,2.5,3,false,standingPins);
+				setUpPins(120,6,-150,2.5,3,false,standingPins);
+				setUpPins(-120,6,-150,2.5,3,false,standingPins);
+				setUpPins(-180,6,-150,2.5,3,false,standingPins);
+				setUpPins(180,6,-150,2.5,3,false,standingPins);
+				setUpPins(-240,6,-150,2.5,3,false,standingPins);
+				setUpPins(240,6,-150,2.5,3,false,standingPins);
+				setUpPins(0,6,-160,2.5,3,true,standingPins);
+
+				/*****************
+				* Add the Lights
+				******************/
+				var ambientLight = new THREE.AmbientLight( 0x404040 ); // soft white light
+				scene.add( ambientLight );
+
+				var spotLight = new THREE.SpotLight(0xffffff, 1.5, 3000,.28,.5);
+				spotLight.position.set(0,50,-600);
+				spotLight.castShadow = true;
+				scene.add(spotLight);
+
+				var spotLight2 = new THREE.SpotLight(0xffffff,.1,3000,.28,1);
+				spotLight2.position.set(0,80,0);
+				spotLight.castShadow = true;
+				scene.add(spotLight2);
+
+				//Spotlight that follows the Ball
+				spotLight3 = new THREE.SpotLight(0xffffff,1,200,.5,.2);
+				spotLight3.position.set(0,100,0);
+				//target = new THREE.Vector3(0,10,10);
+				spotLight3.castShadow = true;
+				scene.add(spotLight3);
+
+				spotLight3.target = ball;
+				scene.add(spotLight3.target);
+
+        requestAnimationFrame( animate );
+	}
+
+
+		/*******************************************************
+		* Called 30-60 frames/second. Changes to the scene will
+		* be made in this function.
+		********************************************************/
+		function animate() {
+			//Only move the ball if we are within the lane
+			if (ball.position.z > -130 && ball.position.z < 100) {
+				camera.position.z = ball.position.z + 100;
+				camera.lookAt(ball.position);
+			}
+
+			//Reset the scene after the ball has been rolled
+			if (ball.position.z < -190) {
+				if (!sceneSetUp) {
+					sceneSetUp = true;
+					setTimeout(resetEnvironment,3500);
+				}
+			}
+			//Animate the scoreText
+			if (scoreText != null && scoreText != undefined &&
+					scoreText.position.z > -160) {
+						scoreText.position.z -= 5;
+			}
+			//Animate the scoreCard
+			if (scoreGroup != null && scoreGroup != undefined &&
+					scoreGroup.position.z > -260) {
+						scoreGroup.position.z -= 5;
+			}
+			//Animate the Message (Welcome,Strike,Spare,etc.)
+			if (messageText != null && messageText != undefined &&
+					messageText.position.z > -160) {
+						messageText.position.z -= 5;
+			}
+			//Animate the Total Scores for each frame
+			for (var i = 0; i < textTotalScores.length; i++) {
+				if (textTotalScores[i].position.z > -160) {
+					textTotalScores[i].position.z -= 5;
+				}
+			}
+
+			//Update the Help Lines if they are turned on
+			if (linesOn) {
+				//Remove the helpline if it is currently in the scene
+				if (helpLine != undefined)
+					scene.remove(helpLine);
+
+				//Create the Geometry and push on the two vertices for the line
+				var geometry = new THREE.Geometry();
+				geometry.vertices.push(
+				new THREE.Vector3(ball.position.x,ball.position.y,ball.position.z),
+				new THREE.Vector3(ball.position.x + ballXAngle,1,-130));
+				var material = new THREE.LineBasicMaterial({color: 0x0000ff});
+				helpLine = new THREE.Line(geometry,material);
+				//Add the line to the scene
+				scene.add( helpLine );
+			}
+
+			//We don't want to apply physics until ball is rolled. Use dirtyPosition
+			//and update the position manually.
+			if (!ballMove) {
+				ball.position.x = ballNewXPosition;
+				ball.__dirtyPosition = true;
+				ball.__dirtyRotation = true;
+			}
+
+			 //Run the physics
+			scene.simulate();
+			renderer.render( scene, camera);
+			requestAnimationFrame( animate );
+		}
+
+
+		/*************************************************
+		* Listeners for keystrokes
+		**************************************************/
+		function onKeyDown(event) {
+			console.log("Key Down");
+			console.log("Key Code" + event.keyCode);
+			//A key
+			if (event.keyCode == '65') {
+				if (linesOn) {
+					linesOn = false;
+					scene.remove(helpLine);
+				}
+				else
+					linesOn = true;
+			}
+			//H Key
+			if (event.keyCode == '72') {
+				if (!controlsUp) {
+		    	modal.style.display = "block";
+					controlsUp = true;
+				}
+				else {
+					modal.style.display = "none";
+					controlsUp = false;
+				}
+			}
+			else {
+				modal.style.display = "none";
+				controlsUp = false;
+			}
+			//Spacebar
+			if (event.keyCode == '32') {
+				if (spacebar)
+					spacebar = false;
+				else
+					spacebar = true;
+			}
+			//Enter
+			if (event.keyCode == '13') {
+				if (!ballMove) {
+					ballMove = true;
+					ball.applyCentralImpulse(new THREE.Vector3(ballXAngle * 50,0,-12000 * ballSpeed));
+					sceneSetUp = false;
+					spacebar = false;
+					if (linesOn) {
+						linesOn = false;
+						scene.remove(helpLine);
+					}
+				}
+			}
+			//Left Arrow
+			if (event.keyCode == '37') {
+				if (spacebar)
+					ballXAngle -= 1;
+				else {
+					if (ball.position.x > -25)
+						ballNewXPosition = ball.position.x - 1;
+					}
+			}
+			//Up Arrow
+			if (event.keyCode == '38') {
+				if (ballSpeed <= 2.5 && (new Date().getTime() - currentTime > 100)) {
+					ballSpeed += 0.1;
+					currentTime = new Date().getTime();
+					scene.remove(speedText);
+					createText(Math.round((ballSpeed - 1) * 10),145,30,-160,scene,7,3,false,false,true);
+				}
+			}
+			//Right Arrow
+			if (event.keyCode == '39') {
+				if (spacebar)
+					ballXAngle += 1;
+				else {
+					if (ball.position.x < 25)
+						ballNewXPosition = ball.position.x + 1;
+				}
+			}
+			//Down Arrow
+			if (event.keyCode == '40') {
+				if (ballSpeed >= 1.1 && (new Date().getTime() - currentTime > 100)) {
+					ballSpeed -= 0.1;
+					currentTime = new Date().getTime();
+					scene.remove(speedText);
+					createText(Math.round((ballSpeed - 1) * 10),145,30,-160,scene,7,3,false,false,true);
+				}
+			}
+		}
+
+		/*********************************************************
+		* Reset the environment back to its original conditions
+		**********************************************************/
+		function resetEnvironment() {
+			console.log("resetEnvironment");
+
+			var prevLength = rollScores.length;
+
+			//Used to calculate Strikes
+			var prevScore = score;
+			//To track how many pins were knocked down
+			var pinsDown = 0;
+
+			//0-Regular, 1-Spare, 2-Strike // score - prevScore == 10
+			var type = 0;
+
+			++numRolls;
+			for (var i = 0; i < 10; i++) {
+				if (numRolls == 1) {
+					//In array of bools, designate which pins are standing, so scene can be set up properly
+					standingPins[i] = isPinStanding(pinsArray[i],pinsStartLocation[i]);
+					//Count the pins that are down
+					if (!standingPins[i])
+						pinsDown++;
+				}
+				else {
+					numRolls = 0;
+					//Count the pins that are down
+					if (pinsArray[i] != null && !isPinStanding(pinsArray[i],pinsStartLocation[i]))
+							pinsDown++;
+					standingPins[i] = true;
+				}
+				//Remove all the pins, so that we can set them up again with a clean slate
+				if (pinsArray[i] != undefined && pinsArray[i] != null)
+					scene.remove(pinsArray[i]);
+			}
+
+			//For Strikes
+			if (pinsDown == 10) {
+				type = 2;
+				//Set numRolls to one so we can move to the next frame.
+				numRolls = 0;
+				//Set all the pins to be standing again
+				for (var j = 0; j < 10; j++) {
+					standingPins[j] = true;
+				}
+				//Add Strike to our array of scores
+				rollScores.push("X")
+			}
+			//For Spares
+			else if (numRolls == 0 && pinsDown + rollScores[rollScores.length - 1] == 10)
+				//Add Spare to our array of scores
+				rollScores.push("/");
+			//For Regular Rolls
+			else
+				//Add number of pins down to our array of scores
+				rollScores.push(pinsDown);
+
+			//Calculating Total Score
+			var newScore;
+
+			//Easier to have variable to keep track of the previous totalScore
+			var prevScore = 0;
+			if (totalScores.length > 0) {
+				prevScore = totalScores[totalScores.length - 1];
+			}
+
+			//Pushing Total Scores for Strikes
+			if (rollScores.length > 2 && rollScores[rollScores.length - 3] == 'X') {
+				console.log("Strike three two frames back");
+				var first = rollScores[rollScores.length - 2];
+				//Convert 'X','/' characters to 10 for adding up the score
+				if (rollScores[rollScores.length - 2] == 'X') {
+					first = 10;
+				}
+				var second = rollScores[rollScores.length - 1];
+				if (rollScores[rollScores.length - 1] == 'X') {
+					second = 10;
+				}
+				if (rollScores[rollScores.length - 1] == '/') {
+					second = 10 - rollScores[rollScores.length - 2];
+				}
+
+				newScore = prevScore + 10 + first + second;
+				console.log("Pushed Strike");
+				totalScores.push(newScore);
+				prevScore = newScore;
+			}
+
+			//Pushing Total Scores for Spares:
+			if (rollScores.length > 1 && rollScores[rollScores.length - 2] == '/') {
+				var first = rollScores[rollScores.length - 1];
+				//Convert 'X' to 10 for adding up the score
+				if (rollScores[rollScores.length - 1] == 'X') {
+					first = 10;
+				}
+				newScore = prevScore + 10 + first;
+				console.log("Pushed Spare");
+				totalScores.push(newScore);
+			}
+
+			//Pushing Total Scores for Regular Rolls
+			if (rollScores.length > 1 && rollScores[rollScores.length - 1] != 'X' &&
+			rollScores[rollScores.length - 1] != '/' && rollScores[rollScores.length - 2] != 'X' &&
+			numRolls == 0 ) {
+					// if (totalScores.length != 9 && rollScores[rollScores.length - 3] != 'X')
+					newScore = prevScore + rollScores[rollScores.length - 2] + rollScores[rollScores.length - 1];
+					totalScores.push(newScore);
+			}
+
+			showScore();
+			setUpPins(0,6,-160,2.5,3,true,standingPins);
+
+			//Move ball and camera back to original positions
+			ball.position.set(0,5,200);
+			camera.position.set(0,50,350);
+			camera.lookAt(scene.position);
+			ball.__dirtyPosition = true;
+			ball.setLinearVelocity(new THREE.Vector3(0,0,0));
+			ball.setAngularVelocity(new THREE.Vector3(0,0,0));
+			ballXAngle = 0;
+			ballMove = false;
+		}
+
+		/****************************************
+		* Takes the pin and a THREE.Vector3 of its original location.
+		* Returns true if standing, false if fallen.
+		*****************************************/
+		function isPinStanding(pin,start) {
+			if (Math.abs(pin.position.y - start.y) > .5 ||
+					Math.abs(pin.position.x - start.x) > 5 ||
+				Math.abs(pin.position.z - start.z) > 5) {
+				return false;
+			}
+			else {
+				return true;
+			}
+		}
+
+		/*******************************************************************************
+		* Set up all 10 pins and place them in location specified on the screen!
+		********************************************************************************/
+		function setUpPins(startX,startY,startZ,distFactor,scaleFactor,physics,standPins) {
+			pinsArray = [10];
+			pinsStartLocation = [];
+			pinsStartLocation.push(new THREE.Vector3(startX,startY,startZ));
+			pinsStartLocation.push(new THREE.Vector3(startX + (distFactor * 2),startY,startZ - (3.5 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (-distFactor * 2),startY,startZ - (3.5 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX,startY,startZ - (7 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (distFactor * 4),startY,startZ - (7 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (-distFactor * 4),startY,startZ - (7 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (distFactor * 2),startY,startZ - (10.5 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (-distFactor * 2),startY,startZ - (10.5 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (distFactor * 6),startY,startZ - (10.5 * distFactor)));
+			pinsStartLocation.push(new THREE.Vector3(startX + (-distFactor * 6),startY,startZ - (10.5 * distFactor)));
+
+			//Set all the pins to null
+			for (var i = 0; i < 10; i++) {
+				pinsArray[i] = null;
+			}
+
+			//Then if the pin is standing, we will add it to the scene.
+			if (standPins[0])
+				createPin(startX,startY,startZ,scaleFactor,scene,physics,0);
+			if (standPins[1])
+				createPin(startX + (distFactor * 2),startY,startZ - (3.5 * distFactor),scaleFactor,scene,physics,1);
+			if (standPins[2])
+				createPin(startX + (-distFactor * 2),startY,startZ - (3.5 * distFactor),scaleFactor,scene,physics,2);
+			if (standPins[3])
+				createPin(startX,startY,startZ - (7 * distFactor),scaleFactor,scene,physics,3);
+			if (standPins[4])
+				createPin(startX + (distFactor * 4),startY,startZ - (7 * distFactor),scaleFactor,scene,physics,4);
+			if (standPins[5])
+				createPin(startX + (-distFactor * 4),startY,startZ - (7 * distFactor),scaleFactor,scene,physics,5);
+			if (standPins[6])
+				createPin(startX + (distFactor * 2),startY,startZ - (10.5 * distFactor),scaleFactor,scene,physics,6);
+			if (standPins[7])
+				createPin(startX + (-distFactor * 2),startY,startZ - (10.5 * distFactor),scaleFactor,scene,physics,7);
+			if (standPins[8])
+				createPin(startX + (distFactor * 6),startY,startZ - (10.5 * distFactor),scaleFactor,scene,physics,8);
+			if (standPins[9])
+				createPin(startX + (-distFactor * 6),startY,startZ - (10.5 * distFactor),scaleFactor,scene,physics,9);
+		}
+
+		/**********************************************************************************
+		* This method shows the scores based on the contents of the rollScores and totalScores
+		* arrays. It will also display messages and notify the user when the game has ended.
+		***********************************************************************************/
+		function showScore() {
+			console.log("RollScores" + rollScores);
+
+			//When a strike occurs, we want the x position to be 15 more to the right
+			if (rollScores[rollScores.length - 1] == 'X' && totalScores.length < 9) {
+				strikeNum += 15;
+			}
+
+			//Add the Score Object to the scene (show '-' instead of 0)
+			if (rollScores[rollScores.length - 1] != 0) {
+				createText(rollScores[rollScores.length-1],-160 + (rollScores.length * 15) + strikeNum,95,400,scene,7,3,true,false,false);
+			}
+			else {
+				createText('-',-160 + (rollScores.length * 15) + strikeNum,95,400,scene,7,3,true,false,false);
+			}
+
+			//Add additional information about scoreCard
+			for (var i = numTotalScores; i < totalScores.length; i++) {
+				createText(totalScores[i], -138.5 + (numTotalScores * 30),80,400,scene,7,3,false,true,false);
+				//numTotalScores keeps track of how many Total Scores have been shown, not the length of the array.
+				numTotalScores++;
+			}
+
+			//If the message object is in the scene, then remove it.
+			if (scene.getObjectByName('message') != null)
+				scene.remove(messageText);
+
+			//Show message about roll or indicate that the game is over.
+			if (totalScores.length >= 10) {
+				createText("Press any key to play again.",-125,50,400,scene,17,5,true,true,false);
+				window.removeEventListener("keydown",onKeyDown,false);
+				window.addEventListener("keydown",function() { location.reload();},false);
+			}
+			else if (rollScores[rollScores.length - 1] == 'X') {
+				createText("Strike!",-27,50,400,scene,17,5,true,true,false);
+			}
+			else if (rollScores[rollScores.length - 1] == '/') {
+				createText("Spare!",-27,50,400,scene,17,5,true,true,false);
+			}
+	}
+
+</script>
+</body>
